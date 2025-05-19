@@ -1,406 +1,179 @@
 #include <iostream>
 #include <vector>
+#include <set>
+#include <string>
 #include <algorithm>
-#include <map>
+#include <functional>
 
-class Book
+class Graph
 {
-    private:
-        std::string isbn_;
-        int copiesAvailable_;
-        int totalCopies_;
-    
     public:
-        std::string title_;
-        std::string author_;
+        Graph() {}
 
-        Book(std::string title = "UnknownTitle", std::string author = "UnknownAuthor", std::string isbn = "ISBN", int copiesAvailable = 0, int totalCopies = 5) : title_(title), author_(author), isbn_(isbn), copiesAvailable_(copiesAvailable), totalCopies_(totalCopies) {}
-
-        Book(const Book& oldBook, std::string newIsbn) 
+        void addEdge(int u, int v)
         {
-            isbn_ = newIsbn;
-            copiesAvailable_ = oldBook.getCopiesAvailable();
-            totalCopies_ = oldBook.getTotalCopies();
-            title_ = oldBook.title_;
-            author_ = oldBook.author_;
+            adj[u].insert(v);
+            adj[v].insert(u);
         }
 
-        std::string getIsbn() 
+        void removeEdge(int u, int v)
         {
-            return isbn_;
+            if (adj[u].find(v) == adj[u].end()) return;
+            adj[u].erase(v);
+            adj[v].erase(u);
         }
 
-        int getCopiesAvailable() const
+        void isReachable(int u, int v)
         {
-            return copiesAvailable_;
-        }
-
-        int getTotalCopies() const
-        {
-            return totalCopies_;
-        }
-
-        void updateCopies(int count)
-        {
-            if (copiesAvailable_ + count < 0)
+            std::vector<bool> vis(adj.size());
+            std::function<void(int,int)> dfs = [&](int x, int p)
             {
-                std::cout << "Invalid request! Count becomes negative" << std::endl;
-                return;
+                vis[x] = true;
+                for (auto &y : adj[x])
+                {
+                    if (!vis[y])
+                    {   
+                        dfs(y, x);
+                    }
+                }   
+            };
+
+            dfs(u, -1);
+            if (vis[v]) std::cout << "Yes\n";
+            else std::cout << "No\n";
+        }
+
+        Graph& operator+(Graph& graph)
+        {
+            std::cin >> graph;
+            if (graph.adj.size() > adj.size()) adj.resize(graph.adj.size());
+            for (int u = 0; u < graph.adj.size(); u++)
+            {   
+                for (auto &v : graph.adj[u])
+                {
+                    addEdge(u, v);
+                }
             }
-            copiesAvailable_ += count;
-            totalCopies_ += count;
+            return *this;
         }
 
-        bool borrowBook() 
+        Graph& operator-(Graph& graph)
         {
-            copiesAvailable_--;
-            return true;
+            std::cin >> graph;
+            Graph newGraph;
+            newGraph.adj.resize(std::max(adj.size(), graph.adj.size()));
+            //std::vector<std::vector<int>> adjMatrix(newGraph.adj.size(), std::vector<int>(newGraph.adj.size()));
+            for (int u = 0; u < graph.adj.size(); u++)
+            {
+                for (auto &v : graph.adj[u])
+                {
+                    if (adj[u].find(v) != adj[u].end())
+                    {
+                        newGraph.addEdge(u,v);
+                    }
+                }
+            }
+            adj = newGraph.adj;
+            return *this;
         }
 
-        bool returnBook()
+        Graph& operator!()
         {
-            copiesAvailable_++;
-            return true;
+            Graph newGraph;
+            newGraph.adj.resize(adj.size());
+            for (int i = 0; i < adj.size(); i++)
+            {
+                for (int j = 0; j < adj.size(); j++)
+                {
+                    if (i == j) continue;
+                    if (adj[i].find(j) == adj[i].end()) newGraph.addEdge(i, j);
+                }
+            }
+            adj = newGraph.adj;
+            return *this;
         }
 
-        void printDetails()
-        {
-            std::cout << title_ << " "  << author_ << std::endl;
-        }
+        friend std::istream& operator>>(std::istream& stream, Graph& graph);
+        friend std::ostream& operator<<(std::ostream& stream, Graph& graph);
 
-        bool operator==(const Book& other) const
-        {
-            return other.isbn_ == isbn_;
-        }
+    private:
+        std::vector<std::set<int>> adj;
 };
 
-class Member
+std::istream& operator>>(std::istream& stream, Graph& graph)
 {
-    private:
-        std::string memberID_;
-        std::map<std::string,int> borrowedBooks;
-        int borrowCount_;
-        int borrowLimit_;
-    
-    public:
-        std::string name_;
+    int n, m;
+    stream >> n >> m;
+    graph.adj.resize(n);
+    for (int i = 0; i < m; i++)
+    {
+        int u, v;
+        stream >> u >> v;
+        graph.addEdge(u,v);
+    }
+    return stream;
+}
 
-        Member(std::string memberID, std::string name, int borrowLimit = 3) : memberID_(memberID), borrowLimit_(borrowLimit), name_(name), borrowCount_(0) {}
-
-        bool borrowBook(std::string isbn) 
-        {
-            if (borrowCount_ == borrowLimit_) 
-            {
-                std::cout << "Invalid request! Borrow limit exceeded\n";
-                return false;
-            }
-            borrowCount_++;
-            borrowedBooks[isbn]++;
-            return true;
-        }
-
-        bool returnBook(std::string isbn)
-        {
-            if (borrowedBooks.find(isbn) == borrowedBooks.end()) 
-            {
-                std::cout << "Invalid request! Book not borrowed\n";
-                return false;
-            }
-            borrowCount_--;
-            borrowedBooks[isbn]--;
-            if (borrowedBooks[isbn] == 0)
-            {
-                borrowedBooks.erase(isbn);
-            }
-            return true;
-        }
-
-        void printDetails()
-        {
-            for (auto& [isbn, noOfBorrowedCopies] : borrowedBooks)
-            {
-                std::cout << memberID_ << " " << name_ << " " << isbn << " " << noOfBorrowedCopies << std::endl;
-            }
-        }
-
-        bool operator==(const Member& other) const
-        {
-            return memberID_ == other.memberID_;
-        }
-
-        friend class Library;
-};
-
-class Library
+std::ostream& operator<<(std::ostream& stream, Graph& graph)
 {
-    private:
-        std::vector<Book> books;
-        std::vector<Member> members;
-
-    public:
-        bool addBook(Book& newBook)
+    for (int i = 0; i < graph.adj.size(); i++)
+    {
+        stream << "Vertex " << i << ": ";
+        for (auto &v : graph.adj[i])
         {
-            if (std::find(books.begin(), books.end(), newBook) != books.end()) 
-            {
-                std::cout << "Invalid request! Book with same isbn already exists" << std::endl;
-                return false;
-            }
-            books.push_back(newBook);
-            return true;
+            stream << v << " ";
         }
-
-        bool addBook(std::string oldIsbn, std::string newIsbn)
-        {
-            int index = 0;
-            for (auto &x : books)
-            {
-                if (x.getIsbn() == oldIsbn)
-                {
-                    break;
-                }
-                index++;
-            }
-
-            if (index == books.size()) return false;
-            Book newBook(books[index], newIsbn);
-            if (std::find(books.begin(), books.end(), newBook) != books.end()) 
-            {
-                std::cout << "Invalid request! Book with same isbn already exists" << std::endl;
-                return false;
-            }
-            books.push_back(newBook);
-            return true;
-        }
-
-        bool registerMember(const Member& newMember) 
-        {
-            if (std::find(members.begin(), members.end(), newMember) != members.end())
-            {
-                std::cout << "Invalid request! Member with same id already exists" << std::endl;
-                return false;
-            }
-            members.push_back(newMember);
-            return true;
-        }
-
-        void updateCopiesCount(std::string isbn, int newCount)
-        {
-            int index = 0;
-            for (auto &x : books)
-            {
-                if (x.getIsbn() == isbn)
-                {
-                    break;
-                }
-                index++;
-            }
-
-            if (index == books.size()) return;
-            books[index].updateCopies(newCount);           
-        }
-        bool borrowBook(std::string memberID, std::string isbn) 
-        {
-            int index = 0;
-            for(auto& x : books)
-            {
-                if(x.getIsbn() == isbn)
-                {
-                    break; 
-                }
-                index++;
-            }
-            if (index == books.size()) return false;
-            if (books[index].getCopiesAvailable() == 0)
-            {
-                std::cout << "Invalid request! Copy of book not available" << std::endl;
-                return false;
-            }
-            int index2 = 0;
-            for (auto& x : members)
-            {
-                if (x.memberID_ == memberID)
-                {
-                    break;
-                }
-                index2++;
-            }
-            if (index2 == members.size()) return false;
-            
-            if (members[index2].borrowBook(isbn))
-            {
-                books[index].borrowBook();
-                return true;
-            }
-            else return false;
-        }
-
-        bool returnBook(std::string memberID, std::string isbn)
-        {
-            int index = 0;
-            for(auto& x : books)
-            {
-                if(x.getIsbn() == isbn)
-                {
-                    break; 
-                }
-                index++;
-            }
-            if (index == books.size()) return false;
-            if (books[index].getCopiesAvailable() == books[index].getTotalCopies())
-            {
-                std::cout << "Invalid request! Copy of book exceeds total copies" << std::endl;
-                return false;
-            }
-            int index2 = 0;
-            for (auto& x : members)
-            {
-                if (x.memberID_ == memberID)
-                {
-                    break;
-                }
-                index2++;
-            }
-            if (index2 == members.size()) return false;
-            
-            if (members[index2].returnBook(isbn))
-            {
-                books[index].returnBook();
-                return true;
-            }
-            else return false;
-        }
-
-        void printLibraryDetails()
-        {
-            for (auto& x: books)
-            {
-                std::cout << x.title_ << " " << x.author_ << " " << x.getCopiesAvailable() << std::endl;
-            }
-
-            for (auto &x : members)
-            {
-                std::cout << x.memberID_ << " " << x.name_ << std::endl;
-            }
-        }
-
-        void printBookDetails(std::string isbn)
-        {
-            int index = 0;
-            for(auto& x : books)
-            {
-                if(x.getIsbn() == isbn)
-                {
-                    break; 
-                }
-                index++;
-            }
-            
-            if (index == books.size()) return;
-            books[index].printDetails();
-        }
-
-        void printMemberDetails(std::string memberID)
-        {   
-            int index = 0;
-            for(auto &x : members)
-            {
-                if (x.memberID_ == memberID)
-                {
-                    break;
-                }
-                index++;
-            }
-
-            if (index == members.size()) return;
-            members[index].printDetails();
-        }
-};
+        stream << std::endl;
+    }
+    return stream;
+}
 
 int main()
 {
     std::string s;
-    Library lib;
+    std::cin >> s;
+    Graph mGraph;
+    std::cin >> mGraph;
     while(true)
     {
         std::cin >> s;
-        if (s == "Book")
+        if (s == "union")
         {
-            std::string type;
-            std::cin >> type;
-            if (type == "None")
-            {
-                Book newBook;
-                lib.addBook(newBook);
-            }
-            else if (type == "ExistingBook")
-            {
-                std::string oldIsbn, newIsbn;
-                std::cin >> oldIsbn >> newIsbn;
-                lib.addBook(oldIsbn, newIsbn);
-            }
-            else
-            {
-                std::string author, isbn;
-                int copiesAvailable, totalCopies;
-                std::cin >> author >> isbn >> copiesAvailable >> totalCopies;
-                Book newBook(type, author, isbn, copiesAvailable, totalCopies);
-                lib.addBook(newBook);
-            }
+            std::cin >> s;
+            Graph graph;
+            mGraph + graph;
         }
-        else if (s == "UpdateCopiesCount")
+        else if (s == "intersection")
         {
-            std::string isbn;
-            int newCount;
-            std::cin >> isbn >> newCount;
-            lib.updateCopiesCount(isbn, newCount);
+            std::cin >> s;
+            Graph graph;
+            mGraph - graph;
         }
-        else if (s == "Member")
+        else if (s == "complement")
         {
-            std::string type;
-            std::cin >> type;
-            if (type == "NoBorrowLimit")
-            {
-                std::string memberID, name;
-                std::cin >> memberID >> name;
-                Member newMember(memberID, name);
-                lib.registerMember(newMember);
-            }
-            else
-            {
-                std::string name;
-                int borrowLimit;
-                std::cin >> name >> borrowLimit;
-                Member newMember(type, name, borrowLimit);
-                lib.registerMember(newMember);
-            }
+            !mGraph;
         }
-        else if (s == "Borrow")
+        else if (s == "isReachable")
         {
-            std::string memberID, isbn;
-            std::cin >> memberID >> isbn;
-            lib.borrowBook(memberID, isbn);
+            int u, v;
+            std::cin >> u >> v;
+            mGraph.isReachable(u, v);
         }
-        else if (s == "Return")
+        else if (s == "add_edge")
         {
-            std::string memberID, isbn;
-            std::cin >> memberID >> isbn;
-            lib.returnBook(memberID, isbn);
+            int u, v;
+            std::cin >> u >> v;
+            mGraph.addEdge(u, v);
         }
-        else if (s == "PrintBook")
+        else if (s == "remove_edge")
         {
-            std::string isbn;
-            std::cin >> isbn;
-            lib.printBookDetails(isbn);
+            int u, v;
+            std::cin >> u >> v;
+            mGraph.removeEdge(u, v);
         }
-        else if (s == "PrintMember")
+        else if (s == "printGraph")
         {
-            std::string memberID;
-            std::cin >> memberID;
-            lib.printMemberDetails(memberID);
-        }
-        else if (s == "PrintLibrary")
-        {
-            lib.printLibraryDetails();
+            std::cout << mGraph;
         }
         else break;
     }
